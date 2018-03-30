@@ -1,0 +1,119 @@
+---
+title: "Activity Data Monitoring"
+author: "Wesam Habboub"
+date: "March 30, 2018"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Activity Monitoring
+
+This is an R Markdown document describing the assignment of week 2 of course 5 related to actvity monitoring data set.
+The data used in this exercise is loaded from: https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip 
+The main objective is to monitor and analyze the number of steps over the time. 
+
+## Getting the Data 
+
+The below code will download the data set file, unzip the file and load the csv file in dataframe.
+
+```{r loaddata }
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip",
+              destfile = "actmonitdata.zip")
+unzip("actmonitdata.zip")
+
+actds<-read.csv(file="activity.csv")
+summary(actds)
+```
+
+## mean total number of steps taken per day
+
+Below code calculate the mean of total number of steps by day
+
+```{r dailysteps }
+library("data.table")
+library(ggplot2)
+stepday<-aggregate(actds[, 1], list(actds$date), sum)
+colnames(stepday)<-c("date","steps") 
+
+ggplot(stepday,aes(x = steps)) +
+    geom_histogram(fill = "green", binwidth = 1000) +
+    labs(title = "Steps per day", x = "Steps", y = "Frequency")
+stepsmean<-mean(na.omit(stepday$steps))
+stepsmedian<-median(na.omit(stepday$steps))
+#show step median and steps mean
+x<-data.frame(stepsmean,stepsmedian)
+x
+
+```
+
+
+## Average daily activity pattern
+Below code calculate the pattern by interval
+```{r steppattern }
+library("data.table")
+library(ggplot2)
+stepinterval<-aggregate(actds[, 1], list(actds$interval), mean,na.rm=TRUE)
+colnames(stepinterval)<-c("interval","steps") 
+
+ggplot(stepinterval,aes(x=interval,y = steps)) +
+    geom_line(col = "blue") +
+    labs(title = "Steps per interval", x = "Interval", y = "Steps")
+maxstepinterval<- stepinterval[stepinterval$steps==max(na.omit(stepinterval$steps)),]
+  #max(na.omit(stepinterval$steps))
+colnames(maxstepinterval)<-c("IntervalMaxStep","AvgSteps")
+maxstepinterval
+#show step median and steps mean
+#x<-data.frame(maxstepinterval,)
+#x
+
+```
+
+## Imputing missing values
+
+Below code is to count the records with NA values then replace NA value by average value of the same interval
+
+```{r missingvalues }
+#Count of NA of the original dataset
+print(c("Count of NA Values in the original dataset is : ",nrow(actds[is.na(actds$steps),])))
+
+#merge original dataset with average step by interval dataset and replace na by average of the #interval
+x<-merge(actds,stepinterval,by="interval")
+x$steps<-ifelse(is.na(x$steps.x),x$steps.y,x$steps.x)
+#remove non required columns
+x$steps.x<-NULL
+x$steps.y<-NULL
+#count of NA after replacement for verification
+print(c("Count of NA Values after replacing NA by average of the interval : ",nrow(x[is.na(x$steps),])))
+
+#Average daily steps using updated dataset
+stepday2<-aggregate(x[, 3], list(x$date), sum)
+colnames(stepday2)<-c("date","steps") 
+
+ggplot(stepday2,aes(x = steps)) +
+    geom_histogram(fill = "green", binwidth = 1000) +
+    labs(title = "Steps per day", x = "Steps", y = "Frequency")
+stepsmean<-mean(stepday2$steps)
+stepsmedian<-median(stepday2$steps)
+#show step median and steps mean
+y<-data.frame(stepsmean,stepsmedian)
+y
+```
+
+## Activity patterns between weekdays and weekends
+
+Check the pattern of weekday vs weekends
+
+```{r weekendpattern }
+x$day<-weekdays(as.Date(x$date))
+x$weekend<-ifelse(x$day=="Saturday" | x$day=="Sunday","Weekend","Weekday")
+
+p<-ggplot(x,aes(x=interval,y = steps)) +
+    geom_line(col = "magenta") +
+    labs(title = "Steps per interval", x = "interval", y = "Steps") + facet_grid(. ~ weekend)
+p
+```
